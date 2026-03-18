@@ -99,10 +99,12 @@ class ClaudeScreeningService:
                 content = raw.content if hasattr(raw, 'content') else str(raw)
                 if content:
                     return str(content).strip()
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"LangChain model invocation failed: {str(e)}. Falling back to default response.")
 
-        # Fallback when no API key
+        # Fallback when no API key or model fails
         return "Thanks for reaching out — I'm here to listen. How are you feeling right now?"
 
     def get_or_create_session(self, session_id: str, user=None) -> ScreeningSession:
@@ -203,8 +205,10 @@ class ClaudeScreeningService:
                     'summary': parsed.get('summary', 'User shows emotional distress requiring support.'),
                     'recommendation': parsed.get('recommendation', 'Therapist consultation recommended.'),
                 }
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"JSON parsing from raw_model_response failed: {str(e)}. Continuing with LangChain fallback...")
 
         if self.model:
             try:

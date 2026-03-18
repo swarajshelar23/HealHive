@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { mockTherapists } from '../../api/mock'
 import SessionCard from '../../components/SessionCard'
 import { Calendar, Clock, Users, CheckCircle, Plus, X, Loader2, FileText, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { getToken } from '../../api/auth'
@@ -11,11 +10,15 @@ export default function TherapistDashboard() {
     const [sessions, setSessions] = useState([])
     const [loading, setLoading] = useState(true)
     const [showAvailability, setShowAvailability] = useState(false)
+    const [availability, setAvailability] = useState([])
+    const [newDate, setNewDate] = useState('')
+    const [newTime, setNewTime] = useState('09:00')
+    const [availabilityError, setAvailabilityError] = useState('')
     const [reports, setReports] = useState([])
     const [reportsLoading, setReportsLoading] = useState(true)
     const [expandedReport, setExpandedReport] = useState(null)
 
-    const therapist = mockTherapists.find(t => t.id === user?.id)
+    const availabilityStorageKey = user?.id ? `healhive_availability_${user.id}` : null
 
     useEffect(() => {
         if (!user?.id) return
@@ -24,6 +27,72 @@ export default function TherapistDashboard() {
             .catch(() => setSessions([]))
             .finally(() => setLoading(false))
     }, [user?.id])
+
+    useEffect(() => {
+        if (!availabilityStorageKey) return
+        try {
+            const raw = window.localStorage.getItem(availabilityStorageKey)
+            if (!raw) {
+                setAvailability([])
+                return
+            }
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+                setAvailability(parsed)
+            }
+        } catch {
+            setAvailability([])
+        }
+    }, [availabilityStorageKey])
+
+    useEffect(() => {
+        if (!availabilityStorageKey) return
+        window.localStorage.setItem(availabilityStorageKey, JSON.stringify(availability))
+    }, [availability, availabilityStorageKey])
+
+    const handleAddAvailability = () => {
+        if (!newDate || !newTime) {
+            setAvailabilityError('Please choose both date and time.')
+            return
+        }
+
+        const day = availability.find(d => d.date === newDate)
+        if (day?.slots?.includes(newTime)) {
+            setAvailabilityError('This slot already exists.')
+            return
+        }
+
+        const nextAvailability = [...availability]
+        const targetDayIndex = nextAvailability.findIndex(d => d.date === newDate)
+
+        if (targetDayIndex === -1) {
+            nextAvailability.push({ date: newDate, slots: [newTime] })
+        } else {
+            const daySlots = [...(nextAvailability[targetDayIndex].slots || []), newTime].sort()
+            nextAvailability[targetDayIndex] = {
+                ...nextAvailability[targetDayIndex],
+                slots: daySlots,
+            }
+        }
+
+        nextAvailability.sort((a, b) => a.date.localeCompare(b.date))
+        setAvailability(nextAvailability)
+        setAvailabilityError('')
+    }
+
+    const handleRemoveAvailabilitySlot = (date, time) => {
+        const nextAvailability = availability
+            .map(day => {
+                if (day.date !== date) return day
+                return {
+                    ...day,
+                    slots: (day.slots || []).filter(slot => slot !== time),
+                }
+            })
+            .filter(day => (day.slots || []).length > 0)
+
+        setAvailability(nextAvailability)
+    }
 
     const handleJoinSession = (session) => {
         const token = getToken()
@@ -93,25 +162,59 @@ export default function TherapistDashboard() {
                             <h2 className="text-lg font-semibold text-wood-800">Your Availability</h2>
                             <button onClick={() => setShowAvailability(false)} className="p-1 text-wood-400 hover:text-wood-600"><X className="w-5 h-5" /></button>
                         </div>
-                        {therapist?.availability?.length > 0 ? (
+
+                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_auto] gap-3 mb-4">
+                            <input
+                                type="date"
+                                value={newDate}
+                                onChange={(e) => setNewDate(e.target.value)}
+                                className="w-full rounded-xl border border-wood-200 px-3 py-2 text-sm text-wood-700 focus:outline-none focus:ring-2 focus:ring-wood-300"
+                            />
+                            <input
+                                type="time"
+                                value={newTime}
+                                onChange={(e) => setNewTime(e.target.value)}
+                                className="w-full rounded-xl border border-wood-200 px-3 py-2 text-sm text-wood-700 focus:outline-none focus:ring-2 focus:ring-wood-300"
+                            />
+                            <button
+                                onClick={handleAddAvailability}
+                                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-wood-700 px-4 py-2 text-sm font-medium text-white hover:bg-wood-800 transition-colors"
+                            >
+                                <Plus className="w-4 h-4" /> Add
+                            </button>
+                        </div>
+
+                        {availabilityError && <p className="text-sm text-red-500 mb-3">{availabilityError}</p>}
+
+                        {availability.length > 0 ? (
                             <div className="space-y-3">
-                                {therapist.availability.map(day => (
+                                {availability.map(day => (
                                     <div key={day.date} className="flex flex-wrap items-center gap-3 p-3 bg-wood-50 rounded-xl">
                                         <span className="text-sm font-medium text-wood-700 min-w-[100px] flex items-center gap-1.5">
                                             <Calendar className="w-3.5 h-3.5 text-wood-500" /> {day.date}
                                         </span>
                                         <div className="flex flex-wrap gap-2">
                                             {day.slots.map(slot => (
-                                                <span key={slot} className="px-3 py-1 rounded-lg bg-beige-100 text-wood-700 text-xs font-medium flex items-center gap-1">
+                                                <button
+                                                    key={`${day.date}-${slot}`}
+                                                    onClick={() => handleRemoveAvailabilitySlot(day.date, slot)}
+                                                    className="px-3 py-1 rounded-lg bg-beige-100 text-wood-700 text-xs font-medium flex items-center gap-1 hover:bg-beige-200 transition-colors"
+                                                    title="Remove slot"
+                                                >
                                                     <Clock className="w-3 h-3" /> {slot}
-                                                </span>
+                                                    <X className="w-3 h-3" />
+                                                </button>
                                             ))}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : <p className="text-sm text-wood-500">No availability set.</p>}
-                        <button className="mt-4 flex items-center gap-1.5 text-sm font-medium text-wood-600 hover:text-wood-800 transition-colors">
+
+                        <button
+                            onClick={handleAddAvailability}
+                            className="mt-4 flex items-center gap-1.5 text-sm font-medium text-wood-600 hover:text-wood-800 transition-colors"
+                        >
                             <Plus className="w-4 h-4" /> Add availability slots
                         </button>
                     </div>

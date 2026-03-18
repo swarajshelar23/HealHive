@@ -64,8 +64,10 @@ class LangChainMentalHealthService:
                     confidence=float(parsed.get('confidence', 0.5)),
                     cues=parsed.get('cues', []),
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Emotion analysis via LLM failed: {str(e)}. Falling back to keyword-based analysis.")
 
         lowered = message.lower()
         scores = {}
