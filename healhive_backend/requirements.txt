@@ -9,4 +9,3 @@ python-dotenv>=1.0,<2.0
 langchain>=0.3,<0.4
 langchain-anthropic>=0.2,<0.3
 crewai>=0.95,<1.0
-requests>=2.31.0

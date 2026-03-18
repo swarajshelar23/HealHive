@@ -12,8 +12,7 @@ except Exception:
 class CrewAIAssessmentAgents:
     def __init__(self):
         self.enabled = all([Agent, Task, Crew])
-        # Use Anthropic model to match configured API key
-        self.llm_model = os.getenv('CREWAI_MODEL', 'claude-3-5-sonnet-20241022')
+        self.llm_model = os.getenv('CREWAI_MODEL', 'gpt-4o-mini')
 
     def build_agents(self):
         if not self.enabled:
